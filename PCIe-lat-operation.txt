@@ -1,0 +1,89 @@
+Operation ordering
+
+prequisition:
+	vi /proc/cpuinfo
+search flags,and if there is a "stdscp",then your computer can use this modules
+
+enter:
+	cd /home/aqiu/pcie-latency
+
+
+<1>#sudo su
+
+<2>#lspci
+	/*find the pcie devices*/
+
+<3>#lspci -nn -s 00:05.0
+	/*find the Vendor ID and Device ID*/
+
+<2 + 3>  #lspci -x
+00: f4 1a 00 10 07 04 10 00 00 00 00 02 00 00 00 00
+1af4: 1000
+
+<4>#echo 0000:00:05.0 > /sys/bus/pci/devices/0000\:00\:05.0/driver/unbind
+	/*If the device you want to measure is currently bound to a driver, release it*/
+
+
+<5>#make
+	/*
+	error: vmalloc undeclared
+	solution: add following code in pcie-latency.c
+				#include <linux/vmalloc.h>
+	*/
+
+<6>#insmod ./pcie-lat.ko ids=1af4:1000
+	/*1af4:1000  Vendor ID and Device ID*/
+
+<7>ruby measure.rb -p 00:05.0 -l 1000000 -b 1 -o 0x0
+	/* I got a error:Caught exception: Invalid argument - /sys/bus/pci/devices/0000:00:05.0/pcie-lat/00:05.0/pcielat_measure
+
+	reason: different pc have different bar
+
+	solution: 
+			 change command with (-b 0 ----> -b 1):ruby measure.rb -p 00:05.0 -l 1000000 -b 1 -o 0x0
+	*/
+
+	```shell
+ruby measure.rb -p 08:10.0 -l 1000000 -b 0 -o 0x0
+
+> TSC freq:     2294470000.0 Hz
+> TSC overhead: 52 cycles
+> Device:       08:10.0
+> BAR:          0
+> Offset:       0x0
+> Loops:        1000000
+>
+>        | Results (1000000 samples)
+> ------------------------------------------------------
+> Mean   |   3628.02 cycles |   1581.20 ns
+> Stdd   |     30.69 cycles |     13.37 ns
+>
+>
+>        | 3σ Results (995274 samples, 0.005% discarded)
+> ------------------------------------------------------
+> Mean   |   3627.52 cycles |   1580.99 ns
+> Stdd   |     27.69 cycles |     12.07 ns
+>
+> writing 3σ values (in ns) to file...
+```
+
+<8>python hist.py lat_1000000_loops_3sigma.csv
+
+Requirement:
+			For Python2x:
+			sudo apt-get install python-numpy
+			sudo apt-get install python-matplotlib
+
+			For Python3x:
+			sudo apt-get install python3-numpy
+			sudo apt-get install python3-matplotlib
+##Remarks##
+* pcie-lat only works on 64 Bit x86 architectures.
+* Look at the comments inside the source files for more in-depth explanations.
+* Some debug/runtime information can be viewed via `dmesg`.
+
+
+error : CONFIG_X86_X32 enabled but no binutils support
+answer: 	can't have space in the path
+
+
